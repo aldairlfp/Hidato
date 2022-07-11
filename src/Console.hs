@@ -2,7 +2,6 @@
 
 module Console
 ( start
-, commandHelp
 , consoleLoop
 , commandExit
 , Command (..),
@@ -18,10 +17,9 @@ import System.IO
 start :: [Command] -> IO ()
 start cmds = do
   let cmdList = cmds ++ [commandExit]
-  let cmdListWithHelp = commandHelp (createHelp : cmdList) : cmdList
-  consoleLoop cmdListWithHelp
+  consoleLoop cmdList
   where 
-    createHelp = commandHelp [] 
+    createHelp = [] 
 
 
 consoleLoop :: [Command] -> IO ()
@@ -51,38 +49,6 @@ data Command = Command
     cmdArgs :: [String],
     cmdIO :: [String] -> IO Int
   }
-
-
--- Help Commands
-commandHelp :: [Command] -> Command
-commandHelp cmds =
-  Command
-    { cmdName = "help",
-      cmdDescription = "The Help command will help you in all your needs",
-      cmdArgs = ["COMMAND"],
-      cmdIO = \args -> do
-        case args of
-          [] -> do
-            putStrLn "Avalidable Commands: "
-            putStr $ unlines $ map printCmd cmds
-            putStrLn ""
-          [command] -> do
-            let r = find (\a -> command == cmdName a) cmds
-            case r of
-              Just c ->
-                putStr $
-                  unlines
-                    [ cmdName c ++ " - " ++ cmdDescription c,
-                      "Usage: " ++ cmdName c ++ " " ++ printArgs (cmdArgs c),
-                      ""
-                    ]
-              Nothing -> putStrLn $ "Command \"" ++ command ++ "\" not found. Try \"help\" to find all avalidable commands."
-        return 0
-    }
-  where
-    printArgs args = foldl (\a b -> a ++ "[" ++ b ++ "] ") "" args
-    printCmd c = unwords ["\t", cmdName c, "\t\t", printArgs (cmdArgs c)]
-
 
 commandExit :: Command
 commandExit =

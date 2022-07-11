@@ -1,18 +1,18 @@
 module Structures
 ( Cell (..)
-, Matrix (..)
-, countInMatrix
+, Board (..)
+, countInBoard
 , countFree
 , countObstacles
 , isAdjacent
-, isValidMatrix
-, isFinalMatrix
-, editMatrixCell
+, isValidBoard
+, isFinalBoard
+, editBoardCell
 , findCellByValue
 , getAdjacents
 , genShuffle
-, blankMatrix
-, darkMatrix
+, blankBoard
+, darkBoard
 ) where
 
 
@@ -20,7 +20,7 @@ import Data.Char (isDigit)
 import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set, lookup_min, lookup_max)
+import Data.Set (Set, lookupMin, lookupMax)
 import qualified Data.Set as Set
 import Debug.Trace
 import System.Random
@@ -132,29 +132,29 @@ cellEquals :: [Cell] -> [Cell] -> Bool
 cellEquals xs ys = cellEquals' xs ys True
 
 
-data Matrix = Matrix { rows :: Int
+data Board = Board { rows :: Int
                      , columns :: Int
-                     , matrix :: Set Cell
+                     , board :: Set Cell
                      }
 
 
-instance Eq Matrix where
-    m1 == m2 = rows m1 == rows m2 && columns m1 == columns m2 && cellEquals (Set.elems $ matrix m1) (Set.elems $ matrix m2)
+instance Eq Board where
+    m1 == m2 = rows m1 == rows m2 && columns m1 == columns m2 && cellEquals (Set.elems $ board m1) (Set.elems $ board m2)
 
 
-showMatrixRow :: [Cell] -> Int -> String
-showMatrixRow rowCells size = unwords [getCellChar cell size | cell <- rowCells ]
+showBoardRow :: [Cell] -> Int -> String
+showBoardRow rowCells size = unwords [getCellChar cell size | cell <- rowCells ]
 
 
-instance Show Matrix where
-    show m = "{" ++ intercalate "\n " [ showMatrixRow (sort (filter (\(Cell crow _ _) -> crow == row) (Set.elems $ matrix m))) maxSize |
+instance Show Board where
+    show m = "{" ++ intercalate "\n " [ showBoardRow (sort (filter (\(Cell crow _ _) -> crow == row) (Set.elems $ board m))) maxSize |
                             row <- [1..(rows m)]] ++ "}\n" where
-                            maxSize = maximum [length (getCellChar cell 0) | cell <- Set.elems $ matrix m]
+                            maxSize = maximum [length (getCellChar cell 0) | cell <- Set.elems $ board m]
 
 
-parseMatrixCell :: String -> (Int, String)
-parseMatrixCell "" = (-2, "")
-parseMatrixCell (s:rest)
+parseBoardCell :: String -> (Int, String)
+parseBoardCell "" = (-2, "")
+parseBoardCell (s:rest)
     | isDigit s = let (nums,rest1) = span isDigit (s:rest) in
                     (read nums :: Int, rest1)
     | s == '.'  = (0, rest)
@@ -162,63 +162,63 @@ parseMatrixCell (s:rest)
     | otherwise = (-2, s:rest)
 
 
-parseMatrixRowRecursive :: Int -> Int -> String -> (Set Cell, String)
-parseMatrixRowRecursive rowNum columnNum input = 
+parseBoardRowRecursive :: Int -> Int -> String -> (Set Cell, String)
+parseBoardRowRecursive rowNum columnNum input = 
     let (_, rinput)    = span (' '==) input
-        (value, rest1) = parseMatrixCell rinput
+        (value, rest1) = parseBoardCell rinput
     in if value == -2 then (Set.empty, rest1) else
-        let (parsedCells, frest) = parseMatrixRowRecursive rowNum (columnNum + 1) rest1
+        let (parsedCells, frest) = parseBoardRowRecursive rowNum (columnNum + 1) rest1
             parsedCell           = Cell rowNum columnNum value
         in (Set.insert parsedCell parsedCells, frest)
 
 
-parseMatrixRow rowNum = parseMatrixRowRecursive rowNum 1
+parseBoardRow rowNum = parseBoardRowRecursive rowNum 1
 
 
-parseMatrixRecursive :: Int -> String -> (Set Cell, String)
-parseMatrixRecursive rowNum (s:rest)
-    | (s == '{' && rowNum == 1) || s == '\n' = let (parsedRow, rest1)  = parseMatrixRow rowNum rest
-                                                   (parsedRows, rest2) = parseMatrixRecursive (rowNum + 1) rest1
+parseBoardRecursive :: Int -> String -> (Set Cell, String)
+parseBoardRecursive rowNum (s:rest)
+    | (s == '{' && rowNum == 1) || s == '\n' = let (parsedRow, rest1)  = parseBoardRow rowNum rest
+                                                   (parsedRows, rest2) = parseBoardRecursive (rowNum + 1) rest1
                                                 in (Set.union parsedRow parsedRows, rest2)
     | s == '}'                               = (Set.empty, rest)
 
 
-parseMatrix = parseMatrixRecursive 1
+parseBoard = parseBoardRecursive 1
 
 
-blankMatrix :: Int -> Int -> Matrix
-blankMatrix rows columns = Matrix rows columns (Set.fromList [Cell row column 0 | row <- [1..rows], column <- [1..columns]] :: Set Cell)
+blankBoard :: Int -> Int -> Board
+blankBoard rows columns = Board rows columns (Set.fromList [Cell row column 0 | row <- [1..rows], column <- [1..columns]] :: Set Cell)
 
 
-darkMatrix :: Int -> Int -> Matrix
-darkMatrix rows columns = Matrix rows columns (Set.fromList [Cell row column (-1) | row <- [1..rows], column <- [1..columns]] :: Set Cell)
+darkBoard :: Int -> Int -> Board
+darkBoard rows columns = Board rows columns (Set.fromList [Cell row column (-1) | row <- [1..rows], column <- [1..columns]] :: Set Cell)
 
 
-countInMatrix :: Int -> Matrix -> Int
-countInMatrix val (Matrix _ _ cells) =
+countInBoard :: Int -> Board -> Int
+countInBoard val (Board _ _ cells) =
                     foldl (\acc cell -> if value cell == val then acc + 1 else acc) 0 cells
 
 
-countObstacles :: Matrix -> Int
-countObstacles = countInMatrix (-1) 
+countObstacles :: Board -> Int
+countObstacles = countInBoard (-1) 
 
 
-countFree :: Matrix -> Int
-countFree = countInMatrix 0 
+countFree :: Board -> Int
+countFree = countInBoard 0 
 
 
-isValidMatrix :: Matrix -> Bool
-isValidMatrix m = let allCells       = length (matrix m) == rows m * columns m
-                      correctValues  = all (\(Cell _ _ val) -> val >= -1 && val <= rows m * columns m - countObstacles m) 
-                                        (matrix m)                    
+isValidBoard :: Board -> Bool
+isValidBoard m = let allCells       = length (board m) == rows m * columns m
+                     correctValues  = all (\(Cell _ _ val) -> val >= -1 && val <= rows m * columns m - countObstacles m) 
+                                        (board m)                    
                   in correctValues && allCells
 
 
-isFinalMatrix :: Matrix -> Int -> Int -> Bool
-isFinalMatrix m@(Matrix rows columns cells) step obs
+isFinalBoard :: Board -> Int -> Int -> Bool
+isFinalBoard m@(Board rows columns cells) step obs
         | step < notObs = False
         | or [ value cell == 0 | cell <- Set.elems cells ] = False
-        | not (and [ countInMatrix val m == 1 | val <- [1..notObs] ]) = False
+        | not (and [ countInBoard val m == 1 | val <- [1..notObs] ]) = False
         | not (and [ or [ value cell1 + 1 == value cell2 | cell2 <- Set.elems cells, isAdjacent cell1 cell2 ]
                                      | cell1 <- Set.elems cells,
                                       value cell1 /= fvalue,
@@ -228,18 +228,18 @@ isFinalMatrix m@(Matrix rows columns cells) step obs
               notObs = rows * columns - obs
 
 
-instance Read Matrix where
+instance Read Board where
     readsPrec _ input =
-        let (matrixCells, rest) = parseMatrix input
-            rowNum              = maximum [ row cell | cell <- Set.elems matrixCells ]
-            columnNum           = maximum [ column cell | cell <- Set.elems matrixCells ]
-            theMatrix           = Matrix rowNum columnNum matrixCells
-        in [(theMatrix, rest) | isValidMatrix theMatrix]
+        let (boardCells, rest) = parseBoard input
+            rowNum              = maximum [ row cell | cell <- Set.elems boardCells ]
+            columnNum           = maximum [ column cell | cell <- Set.elems boardCells ]
+            theBoard           = Board rowNum columnNum boardCells
+        in [(theBoard, rest) | isValidBoard theBoard]
 
 
-editMatrixCell :: Matrix -> Cell -> Matrix
-editMatrixCell (Matrix r c cells) newCell = Matrix r c (Set.insert newCell cells)
+editBoardCell :: Board -> Cell -> Board
+editBoardCell (Board r c cells) newCell = Board r c (Set.insert newCell cells)
 
 
-findCellByValue :: Matrix -> Int -> Set Cell
-findCellByValue m val = Set.filter (\cell -> value cell == val) $ matrix m
+findCellByValue :: Board -> Int -> Set Cell
+findCellByValue m val = Set.filter (\cell -> value cell == val) $ board m

@@ -1,15 +1,17 @@
 module Main where
 
 
-import Algorithms
+import Logic
 import Console
 import Structures
 import System.IO
 import System.Random
 
+main :: IO()
+main = return()
 
-main = do
-        putStrLn "Welcome to Hidato!!! Type 'help' to see the list of available commands."
+shell = do
+        putStrLn "Welcome to Hidato!!!."
         hFlush stdout
         console
 
@@ -34,7 +36,7 @@ generateFunction rs cs ra di path to = do
         let difficulty = read di :: Difficulty
         let tout = read to :: Int
 
-        (ok, m) <- generate_game rows columns ratio difficulty tout
+        (ok, m) <- generateGame rows columns ratio difficulty tout
 
         if ok then do
                 writeFile path (show m)
@@ -70,12 +72,15 @@ commandSolve =
                         case args of
                                 [filePath] -> do
                                         text <- readFile filePath
-                                        let table = read text :: Matrix
+                                        let table = read text :: Board
                                         seed <- randomIO :: IO Int
                                         let gen = mkStdGen seed
                                         let seeds = randoms gen :: [Int]
-                                        let solves = solve_all table seeds
-                                        if null solves then do
+                                        let solves = solveAll table seeds
+                                        let isValid = isValidBoard table
+                                        if not isValid || length solves > 1 then do
+                                                print "The board is not valid"
+                                        else if null solves then do
                                                 print "Solve not found"
                                         else do
                                                 print $ head solves
