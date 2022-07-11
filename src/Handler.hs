@@ -1,4 +1,4 @@
-module Algorithms
+module Handler
 ( Difficulty(..)
 , generate
 , solve
@@ -15,7 +15,7 @@ import Data.Maybe
 import Data.Set (Set, lookupMin, lookupMax)
 import qualified Data.Set as Set
 import Debug.Trace
-import Structures
+import Board
 import System.Random
 import System.Timeout
 
@@ -44,9 +44,9 @@ gen_random rn cn ratio = do
       let obs_ratio = if ratio < 0 || ratio > 1 then 0.33 else ratio
       let cant_obs = floor $ fromIntegral rn * fromIntegral cn * obs_ratio
       let (Board _ _ cells) = darkMatrix rn cn
-      randomCells <- gen_rcell_set cells
-      let matrix = blankMatrix rn cn
-      let obs_matrix = foldl editMatrixCell matrix (take cant_obs randomCells)
+      rcells <- gen_rcell_set cells
+      let board = blankMatrix rn cn
+      let obs_matrix = foldl editMatrixCell board (take cant_obs rcells)
       first_cell <- gen_rcell rn cn 1
       let new_board = editMatrixCell obs_matrix first_cell
       if validate_template new_board then
@@ -58,10 +58,10 @@ gen_random rn cn ratio = do
 data Difficulty = Easy | Normal | Hard deriving (Ord, Eq, Show, Read)
 
 
-disable_ratio :: Difficulty -> Float
-disable_ratio Easy = 50/100
-disable_ratio Normal = 60/100
-disable_ratio Hard = 70/100
+empty_ratio :: Difficulty -> Float
+empty_ratio Easy = 50/100
+empty_ratio Normal = 60/100
+empty_ratio Hard = 70/100
 
 
 gen_rgame :: Int -> Int -> Float -> IO Board
@@ -90,11 +90,11 @@ remove_cells sol@(Board rn cn cs) cells n seeds =
                   rowCell = row headCell
                   colCell = column headCell
                   empty = Cell rowCell colCell 0
-                  matrix = editMatrixCell sol empty
-                  solutions = solve_all matrix seeds
+                  board = editMatrixCell sol empty
+                  solutions = solve_all board seeds
                   isUnix = length (take 2 solutions) < 2
             in    if isUnix then
-                        remove_cells matrix tailCells (n - 1) seeds
+                        remove_cells board tailCells (n - 1) seeds
                   else
                         remove_cells sol tailCells n seeds
 
@@ -106,15 +106,15 @@ gen_game rn cn ratio dif to = do
             return (False, blankMatrix 1 1)
       else do
             let solution = maybe (blankMatrix rn cn) id try_board
-            let max = rn * cn - countObstacles solution
-            let setForRemove = Set.filter (\x -> let v = value x in v > 1 && v < max) (matrix solution) :: Set Cell
-            randomCells <- gen_rcell_set setForRemove
-            let total = Set.size setForRemove
-            let cant_empty = floor $ fromIntegral total * disable_ratio dif
+            let max = rn * cn - count_obs solution
+            let set_remove = Set.filter (\x -> let v = value x in v > 1 && v < max) (board solution) :: Set Cell
+            rcells <- gen_rcell_set set_remove
+            let total = Set.size set_remove
+            let cant_empty = floor $ fromIntegral total * empty_ratio dif
             seed <- randomIO :: IO Int
             let gen = mk_std_gen seed
             let seeds = randoms gen :: [Int]
-            let game = remove_cells solution randomCells cant_empty seeds
+            let game = remove_cells solution rcells cant_empty seeds
             return (True, game)
 
 
@@ -126,12 +126,12 @@ step_board :: Int -> Board -> Cell -> Map Int Cell -> [Int] -> [(Board, Cell)]
 step_board step m@(Board rs cs ma) prev_cell map seeds = if Map.notMember step map
       then [
             new_board | cell <- get_neighbours prev_cell rs cs step seeds,
-            let actCell = Set.elemAt (Set.findIndex cell ma) ma,
-            value actCell == 0,
+            let act_cell = Set.elemAt (Set.findIndex cell ma) ma,
+            value act_cell == 0,
             let new_board = (Board rs cs (Set.insert cell ma), cell)
       ]
-      else  let actCell = map Map.! step
-            in [new_board | is_neighbour actCell prev_cell || value actCell == 1, let new_board = (m, actCell)]
+      else  let act_cell = map Map.! step
+            in [new_board | is_neighbour act_cell prev_cell || value act_cell == 1, let new_board = (m, act_cell)]
 
 
 build_map :: Board -> Map Int Cell
@@ -144,19 +144,19 @@ validate_template (Board rn cn cells)
       | sum [ 1 | degree <- degrees, degree == 1 ] > 2 = False
       | otherwise                                      = True
       where degrees = [ length adjacents | cell <- Set.toList cells, value cell >= 0, 
-                        let adjacents = [ adjR | adj <- get_neighbours cell rn cn 0 [1..],
-                                          let Just adjR = Set.lookupGE adj cells, adjR /= cell, value adjR == 0]]
+                        let adjacents = [ ngbr | ngb <- get_neighbours cell rn cn 0 [1..],
+                                          let Just ngbr = Set.lookupGE ngb cells, ngbr /= cell, value ngbr == 0]]
 
 
 solve_DFS :: Board -> Int -> Cell -> Int -> Map Int Cell -> [Int] -> [Board]
-solve_DFS actualMatrix step prev_cell obs map seeds
-      | step == obs + 1 = [actualMatrix]
-      | otherwise = let toAdd = step_board step actualMatrix prev_cell map seeds
-                    in concat [ solve_DFS matrix (step + 1) prev_cell obs map (tail seeds) | (matrix, prev_cell) <- toAdd ]
+solve_DFS aboard step prev_cell obs map seeds
+      | step == obs + 1 = [aboard]
+      | otherwise = let toAdd = step_board step aboard prev_cell map seeds
+                    in concat [ solve_DFS board (step + 1) prev_cell obs map (tail seeds) | (board, prev_cell) <- toAdd ]
 
 
 solve_all :: Board -> [Int] -> [Board]
-solve_all m = solve_DFS m 1 (Cell 0 0 0) (rows m * columns m  - countObstacles m) (build_map m)
+solve_all m = solve_DFS m 1 (Cell 0 0 0) (rows m * columns m  - count_obs m) (build_map m)
 
 
 solve :: Board -> [Int] -> Board

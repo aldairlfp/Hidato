@@ -1,4 +1,4 @@
-module Structures
+module Board
 ( Cell (..)
 , Board (..)
 , count_in
